@@ -1,0 +1,25 @@
+Dockerfile*
+.dockerignore
+node_modules
+README.md
+BACKEND.md
+FRONTEND.md
+.next
+.git
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# misc
+.DS_Store
+*.pem
+
+.venv
+*__pycache__
+tests*
+dump.rdb
+
+BACKEND.md
