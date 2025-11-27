@@ -1,253 +1,254 @@
 # Frontend - Collaborative Code Editor
 
-Real-time collaborative code editor built with Next.js, TypeScript, and Monaco Editor.
+Real-time collaborative editor with Monaco, WebSockets, and autocomplete.
+
+## Tech Stack
+
+- **Next.js 15+** - App router, React Server Components
+- **TypeScript** - Type safety
+- **Monaco Editor** - VS Code's editor
+- **WebSockets** - Real-time sync
+- **shadcn/ui** - Components
+- **Tailwind CSS** - Styling
 
 ## Structure
 
 ```
 frontend/
 ├── app/
-│   ├── page.tsx                    # Home page (create/join)
-│   └── [roomId]/page.tsx           # Room page (editor)
+│   ├── page.tsx                  # Home (create/join room)
+│   └── [roomId]/page.tsx         # Room page with editor
+│
 ├── components/
 │   ├── editor/
-│   │   ├── code-editor.tsx         # Monaco editor + autocomplete
-│   │   └── cursor-overlay.tsx
+│   │   ├── code-editor.tsx       # Monaco + autocomplete
+│   │   └── cursor-overlay.tsx    # Live cursors
 │   └── room/
-│       ├── connection-status.tsx   # WebSocket status
-│       ├── toolbar.tsx             # Room toolbar
-│       └── user-sidebar.tsx        # Active users list
+│       ├── toolbar.tsx           # Top bar (room info, share)
+│       ├── connection-status.tsx # WebSocket status
+│       └── user-sidebar.tsx      # Active users list
+│
 ├── hooks/
-│   ├── use-autocomplete.ts         # Autocomplete hook
-│   └── use-websocket.ts            # WebSocket connection
+│   ├── use-websocket.ts          # WebSocket connection
+│   └── use-autocomplete.ts       # Debounced suggestions
+│
 ├── lib/
-│   ├── api.ts                      # API client
-│   └── utils.ts                    # Utility functions
+│   ├── api.ts                    # Backend API client
+│   └── utils.ts                  # Debounce, throttle
+│
 └── types/
-    └── index.ts                    # TypeScript types
+    └── index.ts                  # TypeScript types
 ```
 
-## Features
+## Quick Start
 
-### Core
+### Environment Variables
 
-- ✅ Room creation & joining
-- ✅ Real-time code sync (WebSocket)
-- ✅ Live cursor positions (Monaco-based)
-- ✅ User presence (sidebar + cursors)
-- ✅ Connection status indicator
+Create `.env.local`:
 
-### Enhanced
-
-- ✅ Autocomplete (600ms debounce)
-- ✅ Monaco editor integration
-- ✅ shadcn/ui components
-- ✅ Responsive design
-- ✅ Docker support (pnpm + standalone)
-
-## Environment Variables
-
-Create `.env`:
-
-```
+```bash
 NEXT_PUBLIC_URL=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_WS_URL=ws://localhost:8000
 ```
 
-## Installation
+### Installation
 
 ```bash
-# Install dependencies
+# Install
 pnpm install
 
-# Run development server
+# Dev server
 pnpm dev
 
-# Build for production
+# Build
 pnpm build
 
-# Start production server
+# Production
 pnpm start
 ```
 
 ## Docker
 
-### Prerequisites
-
-Make sure `next.config.ts` has standalone output:
-
-```typescript
-const nextConfig: NextConfig = {
-  output: "standalone", // Required for Docker
-};
-export default nextConfig;
-```
-
-### Build
+### Build & Run
 
 ```bash
+# Build image
 docker build -t collab-frontend .
-```
 
-### Run
-
-```bash
+# Run container
 docker run -p 3000:3000 \
   -e NEXT_PUBLIC_API_URL=http://localhost:8000 \
   -e NEXT_PUBLIC_WS_URL=ws://localhost:8000 \
   collab-frontend
 ```
 
-### With Docker Compose
+### Docker Compose
 
 ```bash
 # Start all services
 docker-compose up
 
-# Build and start
+# With rebuild
 docker-compose up --build
 
-# Stop all services
+# Stop
 docker-compose down
 
-# View logs
+# Logs
 docker-compose logs -f frontend
 ```
+
+## Key Features
+
+### Real-Time Collaboration
+
+- **Code Sync**: Debounced (300ms) to reduce traffic
+- **Live Cursors**: Throttled (100ms) for smooth updates
+- **User Presence**: See who's in the room
+- **Auto-Reconnect**: Handles connection drops
+
+### Autocomplete
+
+- **Trigger**: Backend suggests code completions
+- **Debounce**: 600ms delay after typing stops
+- **Accept**: Press Tab to insert suggestion
+- **Display**: Floating tooltip shows preview
+
+### Editor
+
+- **Monaco**: Same editor as VS Code
+- **Custom Tab**: Overrides indentation for autocomplete
+- **Read-Only**: When disconnected
+- **Cursor Sync**: Broadcasts position to others
 
 ## API Integration
 
 ### REST Endpoints
 
 ```typescript
-ApiClient.createRoom(); // Create new room
-ApiClient.checkRoomExists(roomId); // Check if room exists
-ApiClient.getAutocomplete(code, pos, lang); // Get suggestions
+// Create new room
+const { room_id } = await ApiClient.createRoom();
+
+// Check if room exists
+const { exists } = await ApiClient.checkRoomExists(roomId);
+
+// Get autocomplete
+const { suggestion } = await ApiClient.getAutocomplete(
+  code,
+  cursorPosition,
+  "python"
+);
 ```
 
 ### WebSocket
 
 ```typescript
-const { connectionState, code, users, sendCodeUpdate, sendCursorMove } =
-  useWebSocket(roomId);
+const {
+  connectionState, // Status, userId, userColor
+  code, // Current code
+  users, // Active users
+  cursors, // User cursors
+  sendCodeUpdate, // Broadcast code
+  sendCursorMove, // Broadcast cursor
+} = useWebSocket(roomId);
 ```
 
-## Autocomplete
+#### Message Types
 
-### Usage
+**Incoming:**
 
-```typescript
-const { suggestion, isLoading } = useAutocomplete(
-  code,
-  cursorPosition,
-  "python",
-  { debounceMs: 600 }
-);
-```
+- `init` - Full state on connect
+- `code_update` - Code changed
+- `cursor_move` - User moved cursor
+- `user_joined` - New user
+- `user_left` - User disconnected
 
-### Supported Triggers
+**Outgoing:**
 
-- `def ` → Function template
-- `class ` → Class template
-- `for ` → Loop template
-- `import ` → Common imports
-- `try` → Try/except template
-- And more...
+- `code_update` - Send code changes
+- `cursor_move` - Send cursor position
 
-## File Descriptions
+## File Guide
 
-### Core Files
+### Core Pages
 
-**`app/page.tsx`**
+**`app/page.tsx`** - Landing page with create/join UI
 
-- Home page with create/join UI
-- Fixed routing consistency
-- Error handling
+**`app/[roomId]/page.tsx`** - Main editor with WebSocket integration
 
-**`app/[roomId]/page.tsx`**
+### Hooks
 
-- Main editor page
-- WebSocket integration
-- Connection overlays
+**`use-websocket.ts`** - Manages WebSocket lifecycle, handles all message types, maintains room state
 
-**`hooks/use-websocket.ts`**
-
-- WebSocket connection manager
-- Message handling
-- State management
-
-**`hooks/use-autocomplete.ts`**
-
-- Debounced autocomplete
-- API integration
-- Loading states
-
-**`lib/api.ts`**
-
-- API client methods
-- Typed responses
-- Error handling
-
-**`types/index.ts`**
-
-- TypeScript definitions
-- Message types
-- State types
+**`use-autocomplete.ts`** - Debounces autocomplete requests, fetches suggestions from backend
 
 ### Components
 
-**`components/editor/code-editor.tsx`**
+**`code-editor.tsx`** - Wraps Monaco, integrates autocomplete, overrides Tab key
 
-- Monaco editor wrapper
-- Autocomplete integration
-- Cursor tracking
+**`cursor-overlay.tsx`** - Renders other users' cursors using Monaco measurements
 
-**`components/editor/cursor-overlay.tsx`**
+**`toolbar.tsx`** - Room info, share button, leave button
 
-- Live cursor positions
-- Monaco measurement-based
-- shadcn colors
-- Smooth animations
+**`connection-status.tsx`** - Visual WebSocket status (green/yellow/red)
 
-**`components/room/connection-status.tsx`**
+**`user-sidebar.tsx`** - List of active users with color indicators
 
-- Visual connection state
-- shadcn colors
+### Utilities
 
-**`components/room/toolbar.tsx`**
+**`api.ts`** - Typed API methods for backend
 
-- Room info display
-- Share functionality
-- Leave room button
+**`utils.ts`** - Debounce (delays), throttle (limits)
 
-**`components/room/user-sidebar.tsx`**
+## Performance Notes
 
-- Active users list
-- Color indicators
-- Current user highlight
+- **Code sync**: 300ms debounce (reduces network spam)
+- **Cursor updates**: 100ms throttle (smooth but not overwhelming)
+- **Autocomplete**: 600ms debounce (waits for typing to pause)
 
-## Dependencies
+## Color System
 
-Core:
+Backend assigns hex colors, we map them to Tailwind:
 
-- Next.js 16
-- React 19+
-- TypeScript 5+
+```typescript
+const COLOR_MAP = {
+  "#C72626": "#ef4444", // red
+  "#1C978F": "#14b8a6", // teal
+  "#1E7D92": "#0ea5e9", // blue
+  "#B3471D": "#f97316", // orange
+  // ... etc
+};
+```
 
-UI:
+Used in cursors and user sidebar for consistency.
 
-- @monaco-editor/react
-- shadcn/ui
-- Tailwind CSS
+## Troubleshooting
 
-**WebSocket required for collaboration.**
+**WebSocket won't connect:**
 
-## Performance
+- Check `NEXT_PUBLIC_WS_URL` in `.env.local`
+- Ensure backend is running
+- Check browser console for errors
 
-- Code sync debounced (300ms)
-- Cursor updates throttled (100ms)
-- Autocomplete debounced (600ms)
+**Autocomplete not working:**
+
+- Check `NEXT_PUBLIC_API_URL` is correct
+- Verify backend `/rooms/autocomplete` endpoint
+- Check network tab for 404s
+
+**Cursors misaligned:**
+
+- Monaco measurements are calculated dynamically
+- Check `cursor-overlay.tsx` console logs
+- Verify `lineHeight` and `characterWidth` values
+
+**Docker build fails:**
+
+- Ensure `next.config.ts` has `output: "standalone"`
+- Check Node version (20+)
+- Verify all dependencies are in `package.json`
 
 ---
 
-**Built with Next.js • Monaco • shadcn/ui • WebSockets**
+**Built with Next.js • Monaco • WebSockets • Tailwind**

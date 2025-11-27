@@ -7,6 +7,10 @@ interface ConnectionStatusProps {
   connectionState: ConnectionState;
 }
 
+/**
+ * Visual indicator showing WebSocket connection status
+ * States: Connected (green), Connecting (yellow spinner), Error (red)
+ */
 export function ConnectionStatus({ connectionState }: ConnectionStatusProps) {
   const { isConnected, error } = connectionState;
 

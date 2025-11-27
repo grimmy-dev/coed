@@ -12,16 +12,22 @@ interface RoomToolbarProps {
   connectionState: ConnectionState;
 }
 
+/**
+ * Top toolbar showing room info and actions
+ * Features: room code display, share link, leave room
+ */
 export function RoomToolbar({ roomId, connectionState }: RoomToolbarProps) {
   const [copied, setCopied] = useState(false);
   const router = useRouter();
 
+  // Copy just the room code
   const copyRoomId = () => {
     navigator.clipboard.writeText(roomId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Copy full URL for sharing
   const copyRoomUrl = () => {
     const url = `${process.env.NEXT_PUBLIC_URL}/${roomId}`;
     navigator.clipboard.writeText(url);
@@ -31,7 +37,7 @@ export function RoomToolbar({ roomId, connectionState }: RoomToolbarProps) {
 
   return (
     <div className="h-14 border-b border-border bg-card px-6 flex items-center justify-between">
-      {/* Left side - Room info */}
+      {/* Left: Room info and status */}
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-3">
           <span className="text-muted-foreground text-sm font-medium">
@@ -58,7 +64,7 @@ export function RoomToolbar({ roomId, connectionState }: RoomToolbarProps) {
         <ConnectionStatus connectionState={connectionState} />
       </div>
 
-      {/* Right side - Actions */}
+      {/* Right: Actions */}
       <div className="flex items-center gap-3">
         <Button size="sm" onClick={copyRoomUrl} variant="secondary">
           <Share2Icon className="size-4 mr-2" />

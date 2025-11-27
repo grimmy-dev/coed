@@ -1,7 +1,5 @@
 """
-Redis client singleton for application-wide database access.
-
-Provides a single Redis connection pool shared across all services.
+Redis client singleton for shared connection pool across the app.
 """
 
 from typing import Optional
@@ -13,10 +11,8 @@ from config.settings import settings
 
 class RedisClient:
     """
-    Singleton Redis client manager.
-
-    Ensures only one Redis connection pool exists throughout the application
-    lifecycle, improving performance and resource management.
+    Singleton Redis client - ensures only one connection pool exists.
+    Improves performance by reusing connections instead of creating new ones.
     """
 
     _instance: Optional[redis.Redis] = None
@@ -25,25 +21,21 @@ class RedisClient:
     async def get_client(cls) -> redis.Redis:
         """
         Get or create Redis client instance.
-
-        Returns:
-            redis.Redis: Configured Redis client with connection pool
+        Thread-safe singleton pattern.
         """
         if cls._instance is None:
             cls._instance = redis.from_url(
                 settings.redis_url,
                 encoding="utf-8",
-                decode_responses=True,
+                decode_responses=True,  # Automatically decode bytes to strings
             )
         return cls._instance
 
     @classmethod
     async def close(cls) -> None:
         """
-        Close Redis connection pool.
-
-        Should be called during application shutdown to ensure
-        all connections are properly closed.
+        Close Redis connection pool on shutdown.
+        Call this during application cleanup.
         """
         if cls._instance:
             await cls._instance.close()
@@ -52,9 +44,11 @@ class RedisClient:
 
 async def get_redis() -> redis.Redis:
     """
-    Dependency injection function for FastAPI routes.
+    FastAPI dependency for injecting Redis into routes.
 
-    Returns:
-        redis.Redis: Active Redis client instance
+    Usage:
+        @router.get("/example")
+        async def example(redis: Redis = Depends(get_redis)):
+            ...
     """
     return await RedisClient.get_client()

@@ -1,8 +1,5 @@
 """
-Room management REST API endpoints.
-
-Provides HTTP endpoints for creating rooms, checking existence,
-and autocomplete functionality.
+REST API endpoints for room management and autocomplete.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,15 +18,7 @@ router = APIRouter()
 
 
 def get_room_service(redis: Redis = Depends(get_redis)) -> RoomService:
-    """
-    Dependency injection for RoomService.
-
-    Args:
-        redis: Redis client instance (injected)
-
-    Returns:
-        RoomService: Initialized room service
-    """
+    """Dependency injection for RoomService."""
     return RoomService(redis)
 
 
@@ -40,16 +29,8 @@ async def create_room(
     """
     Create a new collaborative coding room.
 
-    Generates a unique room ID and initializes the room in Redis.
-
-    Args:
-        room_service: Room service instance (injected)
-
-    Returns:
-        RoomCreateResponse: Room ID and connection URLs
-
-    Raises:
-        HTTPException: If room creation fails
+    Generates unique room ID and initializes in Redis.
+    Returns room ID and URLs for joining.
     """
     try:
         room_id, _ = await room_service.create_room()
@@ -70,13 +51,7 @@ async def check_room_exists(
 ) -> RoomExistsResponse:
     """
     Check if a room exists.
-
-    Args:
-        room_id: Room identifier to check
-        room_service: Room service instance (injected)
-
-    Returns:
-        RoomExistsResponse: Whether the room exists
+    Used by frontend before attempting to join.
     """
     exists = await room_service.room_exists(room_id)
     return RoomExistsResponse(exists=exists, room_id=room_id)
@@ -87,18 +62,8 @@ async def autocomplete(request: AutocompleteRequest) -> AutocompleteResponse:
     """
     Get code autocomplete suggestions.
 
-    Provides mocked autocomplete based on pattern matching.
-    This endpoint demonstrates the autocomplete flow without requiring
-    actual AI/ML models.
-
-    Args:
-        request: Autocomplete request with code and cursor position
-
-    Returns:
-        AutocompleteResponse: Suggested completion
-
-    Raises:
-        HTTPException: If no suggestion available
+    Uses rule-based pattern matching (mocked implementation).
+    In production, this would call an AI model.
     """
     service = AutocompleteService()
 

@@ -16,6 +16,10 @@ interface UseWebSocketReturn {
   sendCursorMove: (line: number, column: number) => void;
 }
 
+/**
+ * Manages WebSocket connection for real-time collaboration
+ * Handles code sync, cursor positions, and user presence
+ */
 export function useWebSocket(roomId: string): UseWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -35,14 +39,14 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
     Map<string, { id: string; color: string }>
   >(new Map());
 
-  // Handle incoming WebSocket messages
+  // Process incoming messages from server
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
       const message: WebSocketMessage = JSON.parse(event.data);
 
       switch (message.type) {
         case "init":
-          // Initial state when connecting
+          // Server sends full state on connect
           setCode(message.code);
           setConnectionState((prev) => ({
             ...prev,
@@ -50,7 +54,7 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
             userColor: message.your_color,
           }));
 
-          // Set users
+          // Build users map
           const usersMap = new Map<string, { id: string; color: string }>();
           message.users.forEach((userId) => {
             usersMap.set(userId, {
@@ -61,7 +65,7 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
           });
           setUsers(usersMap);
 
-          // Set cursors
+          // Build cursors map
           const cursorsMap = new Map<string, CursorPosition>();
           Object.entries(message.cursors).forEach(([userId, cursor]) => {
             cursorsMap.set(userId, cursor);
@@ -70,12 +74,12 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
           break;
 
         case "code_update":
-          // Another user updated code
+          // Sync code from another user
           setCode(message.code);
           break;
 
         case "cursor_move":
-          // Another user moved cursor
+          // Update other user's cursor position
           setCursors((prev) => {
             const newCursors = new Map(prev);
             newCursors.set(message.user_id, {
@@ -88,7 +92,7 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
           break;
 
         case "user_joined":
-          // New user joined room
+          // Add new user to room
           setUsers((prev) => {
             const newUsers = new Map(prev);
             newUsers.set(message.user_id, {
@@ -100,7 +104,7 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
           break;
 
         case "user_left":
-          // User left room
+          // Remove user and their cursor
           setUsers((prev) => {
             const newUsers = new Map(prev);
             newUsers.delete(message.user_id);
@@ -118,7 +122,7 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
     }
   }, []);
 
-  // Connect to WebSocket
+  // Establish WebSocket connection
   useEffect(() => {
     const wsUrl = `${
       process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"
@@ -150,7 +154,7 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
         isConnected: false,
       }));
 
-      // Auto-reconnect after 3 seconds if not normal closure
+      // Auto-reconnect if connection drops unexpectedly
       if (event.code !== 1000) {
         reconnectTimeoutRef.current = setTimeout(() => {
           // Trigger re-render to reconnect
@@ -158,7 +162,7 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
       }
     };
 
-    // Cleanup on unmount
+    // Clean up on unmount
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -169,7 +173,7 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
     };
   }, [roomId, handleMessage]);
 
-  // Send code update to server
+  // Broadcast code changes to other users
   const sendCodeUpdate = useCallback((newCode: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
@@ -181,7 +185,7 @@ export function useWebSocket(roomId: string): UseWebSocketReturn {
     }
   }, []);
 
-  // Send cursor position to server
+  // Broadcast cursor movement to other users
   const sendCursorMove = useCallback((line: number, column: number) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(

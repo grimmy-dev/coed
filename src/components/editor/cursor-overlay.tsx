@@ -16,7 +16,7 @@ interface EditorMeasurements {
   contentLeft: number;
 }
 
-// Map backend colors to solid RGB colors (HSL doesn't work in inline styles)
+// Map backend colors to Tailwind-style colors
 const COLOR_MAP: Record<string, string> = {
   "#C72626": "#ef4444", // Red
   "#1C978F": "#14b8a6", // Teal
@@ -32,6 +32,10 @@ const mapToColor = (hexColor: string): string => {
   return COLOR_MAP[hexColor] || "#6366f1"; // Default indigo
 };
 
+/**
+ * Displays other users' cursors overlaid on the Monaco editor
+ * Calculates positions based on Monaco's actual measurements
+ */
 export function CursorOverlay({
   cursors,
   currentUserId,
@@ -43,7 +47,7 @@ export function CursorOverlay({
     contentLeft: 70,
   });
 
-  // Get actual Monaco measurements
+  // Get Monaco's actual line height and character width
   useEffect(() => {
     if (!editorRef.current) return;
 
@@ -51,15 +55,15 @@ export function CursorOverlay({
 
     const updateMeasurements = () => {
       try {
-        // Get layout info
+        // Get Monaco layout info
         const layoutInfo = editor.getLayoutInfo();
 
-        // Get options
+        // Get editor options
         const options = editor.getOptions();
         const lineHeightOption = options.get(60); // lineHeight option ID
         const fontSizeOption = options.get(51); // fontSize option ID
 
-        // Extract numeric values with proper type checking
+        // Extract numeric values
         const lineHeight =
           typeof lineHeightOption === "number" ? lineHeightOption : 19;
         const fontSize =
@@ -88,7 +92,7 @@ export function CursorOverlay({
     // Initial measurements
     updateMeasurements();
 
-    // Update on layout changes
+    // Update when layout changes (e.g., window resize)
     const disposable = editor.onDidLayoutChange(() => {
       updateMeasurements();
     });
@@ -98,7 +102,7 @@ export function CursorOverlay({
     };
   }, [editorRef]);
 
-  // Filter out current user's cursor
+  // Filter out current user's cursor (don't show own cursor)
   const otherCursors = Array.from(cursors.entries()).filter(
     ([userId]) => userId !== currentUserId
   );
@@ -128,8 +132,8 @@ export function CursorOverlay({
       {otherCursors.map(([userId, cursor]) => {
         const color = mapToColor(cursor.color);
 
-        // Calculate position using actual Monaco measurements
-        const top = (cursor.line-0.5) * measurements.lineHeight;
+        // Calculate pixel position from line/column
+        const top = (cursor.line - 0.5) * measurements.lineHeight;
         const left =
           measurements.contentLeft +
           (cursor.column - 1) * measurements.characterWidth;
@@ -143,7 +147,7 @@ export function CursorOverlay({
               left: `${left}px`,
             }}
           >
-            {/* Cursor line */}
+            {/* Blinking cursor line */}
             <div
               className="w-0.5 animate-pulse"
               style={{
@@ -153,7 +157,7 @@ export function CursorOverlay({
               }}
             />
 
-            {/* User label */}
+            {/* User label tooltip */}
             <div
               className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium whitespace-nowrap shadow-lg"
               style={{

@@ -1,8 +1,8 @@
 """
 WebSocket endpoint for real-time collaboration.
 
-Handles WebSocket connections, user presence, code synchronization,
-and cursor position updates through Redis pub/sub.
+Handles connections, user presence, code sync, and cursor updates.
+Uses Redis pub/sub for horizontal scaling across multiple servers.
 """
 
 import json
@@ -27,14 +27,7 @@ _pubsub_service: PubSubService | None = None
 async def get_pubsub_service(redis: Redis = Depends(get_redis)) -> PubSubService:
     """
     Get or create PubSub service instance.
-
-    Uses lazy initialization to create service only when needed.
-
-    Args:
-        redis: Redis client instance (injected)
-
-    Returns:
-        PubSubService: Global pub/sub service
+    Lazy initialization ensures service is created only when needed.
     """
     global _pubsub_service
     if _pubsub_service is None:
@@ -43,22 +36,12 @@ async def get_pubsub_service(redis: Redis = Depends(get_redis)) -> PubSubService
 
 
 def generate_user_id() -> str:
-    """
-    Generate a unique user identifier.
-
-    Returns:
-        str: 16-character hexadecimal user ID
-    """
+    """Generate unique 16-character user ID."""
     return secrets.token_hex(8)
 
 
 def generate_user_color() -> str:
-    """
-    Generate a random color for user cursor.
-
-    Returns:
-        str: Hex color code
-    """
+    """Assign random color for user's cursor."""
     colors = [
         "#C72626",  # Red
         "#1C978F",  # Teal
@@ -79,24 +62,19 @@ async def websocket_endpoint(
     """
     WebSocket endpoint for real-time collaboration.
 
-    Connection Flow:
+    Flow:
         1. Validate room exists
-        2. Accept connection and assign user ID/color
+        2. Accept connection, assign user ID/color
         3. Subscribe to Redis pub/sub channel
-        4. Send initial room state to client
-        5. Broadcast user joined to other clients
-        6. Listen for client messages
+        4. Send initial room state (code, users, cursors)
+        5. Broadcast "user joined" to others
+        6. Listen for client messages (code updates, cursor moves)
         7. Handle disconnect and cleanup
-
-    Args:
-        websocket: WebSocket connection
-        room_id: Room identifier from URL path
-        redis: Redis client (injected)
     """
     room_service = RoomService(redis)
     pubsub_service = await get_pubsub_service(redis)
 
-    # Generate user credentials
+    # Assign user credentials
     user_id = generate_user_id()
     user_color = generate_user_color()
 
@@ -109,7 +87,7 @@ async def websocket_endpoint(
         # Connect WebSocket
         await connection_manager.connect(websocket, room_id, user_id)
 
-        # Subscribe to room's pub/sub channel
+        # Subscribe to room's Redis pub/sub channel
         await pubsub_service.subscribe_to_room(room_id)
 
         # Add user to Redis users set
@@ -119,7 +97,7 @@ async def websocket_endpoint(
         code = await room_service.get_room_code(room_id)
         users = list(await redis.smembers(f"room:{room_id}:users"))
 
-        # Get cursor positions
+        # Get cursor positions from Redis
         cursors_raw = await redis.hgetall(f"room:{room_id}:cursors")
         cursors = {}
         for uid, cursor_json in cursors_raw.items():
@@ -140,12 +118,12 @@ async def websocket_endpoint(
             }
         )
 
-        # Broadcast user joined to others
+        # Broadcast "user joined" to others
         await pubsub_service.publish_to_room(
             room_id, {"type": "user_joined", "user_id": user_id, "color": user_color}
         )
 
-        # Refresh room TTL
+        # Refresh room TTL (prevent expiration)
         await room_service.refresh_room_ttl(room_id)
 
         # Listen for client messages
@@ -190,20 +168,11 @@ async def handle_client_message(
     pubsub_service: PubSubService,
 ) -> None:
     """
-    Handle incoming messages from WebSocket client.
+    Handle incoming WebSocket messages from client.
 
-    Message Types:
+    Message types:
         - code_update: User edited code
         - cursor_move: User moved cursor
-
-    Args:
-        message: Parsed JSON message from client
-        room_id: Room identifier
-        user_id: User who sent the message
-        user_color: User's cursor color
-        redis: Redis client
-        room_service: Room service instance
-        pubsub_service: Pub/sub service instance
     """
     msg_type = message.get("type")
 
@@ -212,7 +181,7 @@ async def handle_client_message(
         code = message.get("code", "")
         await redis.set(f"room:{room_id}:code", code)
 
-        # Publish to other clients
+        # Broadcast to other clients via pub/sub
         await pubsub_service.publish_to_room(
             room_id, {"type": "code_update", "code": code, "user_id": user_id}
         )
@@ -229,7 +198,7 @@ async def handle_client_message(
         }
         await redis.hset(f"room:{room_id}:cursors", user_id, json.dumps(cursor_data))
 
-        # Publish cursor movement
+        # Broadcast cursor movement
         await pubsub_service.publish_to_room(
             room_id,
             {
@@ -250,21 +219,14 @@ async def cleanup_connection(
     pubsub_service: PubSubService,
 ) -> None:
     """
-    Clean up resources when user disconnects.
+    Clean up when user disconnects.
 
-    Cleanup Steps:
+    Steps:
         1. Remove from connection manager
         2. Remove user from Redis
         3. Remove cursor position
-        4. Broadcast user left
+        4. Broadcast "user left"
         5. Unsubscribe from pub/sub if room empty
-
-    Args:
-        websocket: WebSocket connection
-        room_id: Room identifier
-        user_id: User identifier
-        redis: Redis client
-        pubsub_service: Pub/sub service instance
     """
     # Remove from connection manager
     connection_manager.disconnect(websocket)
@@ -278,7 +240,7 @@ async def cleanup_connection(
         room_id, {"type": "user_left", "user_id": user_id}
     )
 
-    # Unsubscribe if no users left
+    # Unsubscribe if no users left in this server instance
     if connection_manager.get_connection_count(room_id) == 0:
         await pubsub_service.unsubscribe_from_room(room_id)
         logger.info(f"Room {room_id} is now empty")

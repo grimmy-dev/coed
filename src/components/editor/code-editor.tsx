@@ -23,6 +23,10 @@ export interface CodeEditorRef {
   editorRef: React.RefObject<editor.IStandaloneCodeEditor | null>;
 }
 
+/**
+ * Monaco-based code editor with autocomplete integration
+ * Handles local edits and syncs with WebSocket
+ */
 export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
   function CodeEditor(
     { value, onChange, onCursorChange, language = "python", readOnly = false },
@@ -30,7 +34,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
   ) {
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<Monaco | null>(null);
-    const isLocalChangeRef = useRef(false);
+    const isLocalChangeRef = useRef(false); // Prevent feedback loop
     const [cursorPosition, setCursorPosition] = useState(0);
     const [currentLine, setCurrentLine] = useState(1);
     const [currentColumn, setCurrentColumn] = useState(1);
@@ -38,7 +42,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
 
     useImperativeHandle(ref, () => ({ editorRef }));
 
-    // Autocomplete
+    // Get autocomplete suggestions
     const { suggestion } = useAutocomplete(value, cursorPosition, language, {
       enabled: !readOnly,
       debounceMs: 600,
@@ -48,12 +52,12 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       suggestionRef.current = suggestion?.suggestion ?? null;
     }, [suggestion]);
 
-    // Editor Mount
+    // Initialize editor and set up event handlers
     const handleEditorDidMount: OnMount = (editor, monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
 
-      // Track cursor movement
+      // Track cursor position for WebSocket broadcast
       editor.onDidChangeCursorPosition((e) => {
         const { lineNumber, column } = e.position;
 
@@ -65,12 +69,12 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         setCursorPosition(offset);
       });
 
-      // FORCE TAB TO USE AUTOCOMPLETE — OVERRIDES INDENTATION
+      // Override Tab key to accept autocomplete suggestions
       editor.addCommand(monaco.KeyCode.Tab, () => {
         const suggestionText = suggestionRef.current;
 
         if (!suggestionText) {
-          // Block indentation completely
+          // Block default tab indentation if no suggestion
           return;
         }
 
@@ -78,7 +82,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         const position = editor.getPosition();
         if (!model || !position) return;
 
-        // Insert suggestion
+        // Insert suggestion at cursor
         editor.executeEdits("autocomplete", [
           {
             range: {
@@ -91,7 +95,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           },
         ]);
 
-        // Move cursor to end of inserted suggestion
+        // Move cursor to end of inserted text
         const lines = suggestionText.split("\n");
         const lastLine = lines[lines.length - 1];
 
@@ -110,14 +114,14 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           isLocalChangeRef.current = false;
         }, 50);
 
-        // Clear suggestion
+        // Clear suggestion after accepting
         suggestionRef.current = null;
       });
 
       editor.focus();
     };
 
-    // WebSocket local change handler
+    // Handle local code changes (user typing)
     const handleEditorChange: OnChange = (newValue) => {
       if (!newValue) return;
 
@@ -129,7 +133,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       }, 50);
     };
 
-    // Remote updates → sync editor
+    // Sync remote code changes from WebSocket
     useEffect(() => {
       if (!editorRef.current || isLocalChangeRef.current) return;
 
@@ -139,11 +143,11 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       if (currentValue !== value) {
         const pos = editor.getPosition();
         editor.setValue(value);
-        if (pos) editor.setPosition(pos);
+        if (pos) editor.setPosition(pos); // Preserve cursor
       }
     }, [value]);
 
-    // Suggestion overlay widget
+    // Show autocomplete suggestion as floating widget
     useEffect(() => {
       if (!editorRef.current || !monacoRef.current || !suggestion) return;
 
@@ -156,7 +160,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
         getDomNode: () => {
           const node = document.createElement("div");
 
-          // ---- Container styling ----
+          // Style the tooltip container
           node.style.background = "rgba(40, 40, 40, 0.85)";
           node.style.backdropFilter = "blur(6px)";
           node.style.border = "1px solid rgba(255, 255, 255, 0.08)";
@@ -172,7 +176,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           node.style.pointerEvents = "auto";
           node.style.maxWidth = "380px";
 
-          // ---- First line: the suggestion preview ----
+          // Preview text (first line of suggestion)
           const previewText = document.createElement("div");
           previewText.textContent = suggestion.suggestion.split("\n")[0];
           previewText.style.color = "#4EC9B0";
@@ -182,7 +186,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
           previewText.style.textOverflow = "ellipsis";
           previewText.style.whiteSpace = "nowrap";
 
-          // ---- Second line: subtle hint ----
+          // Hint text
           const hintText = document.createElement("div");
           hintText.textContent = "Press Tab to accept";
           hintText.style.opacity = "0.6";
@@ -212,7 +216,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
     }, [suggestion, currentLine, currentColumn]);
 
     return (
-      <div className="h-full w-full">
+      <div className="h-full w-full font-mono!">
         <Editor
           height="100%"
           defaultLanguage={language}
@@ -231,7 +235,7 @@ export const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
             readOnly,
             wordWrap: "on",
 
-            // Required to stop Monaco consuming Tab
+            // Disable Monaco's built-in autocomplete (we use custom)
             useTabStops: false,
             tabCompletion: "off",
             quickSuggestions: false,

@@ -1,8 +1,7 @@
 """
 Collaborative Code Editor API
 
-A real-time collaborative code editing application built with FastAPI,
-WebSockets, and Redis for state management and pub/sub messaging.
+Real-time collaborative code editing with FastAPI, WebSockets, and Redis.
 """
 
 from contextlib import asynccontextmanager
@@ -18,15 +17,10 @@ from routers import rooms, websocket
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Handle application startup and shutdown events.
+    Handle application startup and shutdown.
 
-    Startup:
-        - Initialize Redis connection pool
-        - Verify Redis connectivity
-
-    Shutdown:
-        - Close Redis connection pool
-        - Clean up resources
+    Startup: Connect to Redis and verify connectivity
+    Shutdown: Close Redis connection pool
     """
     # Startup
     await RedisClient.get_client()
@@ -39,7 +33,7 @@ async def lifespan(app: FastAPI):
     print("✓ Redis connection closed")
 
 
-# Initialize FastAPI application
+# Initialize FastAPI app
 app = FastAPI(
     title="Collaborative Code Editor API",
     description="Real-time collaborative code editing with WebSocket support",
@@ -47,7 +41,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS
+# Configure CORS (allow frontend to make requests)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -56,19 +50,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API routers
+# Register API routes
 app.include_router(rooms.router, prefix="/rooms", tags=["rooms"])
 app.include_router(websocket.router, tags=["websocket"])
 
 
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint.
-
-    Returns:
-        dict: Service status and name
-    """
+    """Health check endpoint for monitoring."""
     return {"status": "ok", "service": "collaborative-code-editor", "version": "1.0.0"}
 
 

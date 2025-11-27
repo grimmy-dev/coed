@@ -1,8 +1,8 @@
 """
-Redis Pub/Sub messaging service.
+Redis Pub/Sub service for multi-server message broadcasting.
 
-Manages Redis publish/subscribe channels for real-time message broadcasting
-between server instances and WebSocket clients.
+Enables horizontal scaling by allowing multiple server instances
+to share room state through Redis pub/sub channels.
 """
 
 import asyncio
@@ -20,38 +20,28 @@ logger = logging.getLogger(__name__)
 
 class PubSubService:
     """
-    Manages Redis Pub/Sub subscriptions for room-based messaging.
+    Manages Redis Pub/Sub for room-based messaging.
 
-    Responsibilities:
-        - Subscribe to room channels
-        - Listen for Redis messages
-        - Forward messages to WebSocket clients
-        - Handle channel lifecycle
+    Each room has its own channel: "room_channel:{room_id}"
 
-    This enables horizontal scaling by allowing multiple server instances
-    to share room state through Redis pub/sub.
+    When a message is published:
+        1. Redis broadcasts to all subscribed servers
+        2. Each server forwards to its local WebSocket clients
+        3. This enables real-time sync across multiple servers
     """
 
     def __init__(self, redis_client: Redis):
-        """
-        Initialize pub/sub service with Redis client.
-
-        Args:
-            redis_client: Redis client instance for pub/sub operations
-        """
+        """Initialize with Redis client."""
         self.redis = redis_client
-        self.subscriptions: Dict[str, PubSub] = {}
-        self.listener_tasks: Dict[str, asyncio.Task] = {}
+        self.subscriptions: Dict[str, PubSub] = {}  # room_id -> PubSub
+        self.listener_tasks: Dict[str, asyncio.Task] = {}  # room_id -> Task
 
     async def subscribe_to_room(self, room_id: str) -> None:
         """
-        Subscribe to a room's Redis Pub/Sub channel.
+        Subscribe to a room's Redis channel.
 
-        Creates a channel listener that forwards messages to WebSocket clients.
+        Creates background listener that forwards messages to WebSocket clients.
         If already subscribed, this is a no-op.
-
-        Args:
-            room_id: Room to subscribe to
         """
         if room_id in self.subscriptions:
             return  # Already subscribed
@@ -72,12 +62,8 @@ class PubSubService:
 
     async def unsubscribe_from_room(self, room_id: str) -> None:
         """
-        Unsubscribe from a room's channel when no users remain.
-
-        Cancels the listener task and cleans up the PubSub instance.
-
-        Args:
-            room_id: Room to unsubscribe from
+        Unsubscribe from room channel when no users remain.
+        Cancels listener task and cleans up PubSub instance.
         """
         if room_id not in self.subscriptions:
             return
@@ -98,20 +84,17 @@ class PubSubService:
 
     async def _listen_to_channel(self, room_id: str, pubsub: PubSub) -> None:
         """
-        Listen to messages from a Redis Pub/Sub channel.
+        Background task that listens to Redis channel.
 
-        Runs as a background task, continuously listening for messages
-        and forwarding them to WebSocket clients in the room.
-
-        Args:
-            room_id: Room identifier
-            pubsub: Redis PubSub instance to listen on
+        Continuously receives messages from Redis and forwards them
+        to WebSocket clients in this server instance.
         """
         try:
             async for message in pubsub.listen():
                 if message["type"] == "message":
                     try:
                         data = json.loads(message["data"])
+                        # Forward to local WebSocket clients
                         await connection_manager.broadcast_to_room(room_id, data)
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to parse message: {e}")
@@ -123,14 +106,10 @@ class PubSubService:
 
     async def publish_to_room(self, room_id: str, message: dict) -> None:
         """
-        Publish a message to a room's channel.
+        Publish message to room's Redis channel.
 
-        The message will be received by all server instances subscribed
+        Message will be received by all server instances subscribed
         to this room and forwarded to their WebSocket clients.
-
-        Args:
-            room_id: Room to publish to
-            message: Message dictionary to broadcast
         """
         channel_name = f"room_channel:{room_id}"
         message_json = json.dumps(message)

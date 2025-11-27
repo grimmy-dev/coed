@@ -1,7 +1,6 @@
 """
-Pydantic models for request/response validation and serialization.
-
-Defines all data structures used in API endpoints and WebSocket messages.
+Pydantic models for request/response validation.
+Defines all data structures for REST API and WebSocket messages.
 """
 
 from typing import Dict, Literal, Optional
@@ -15,7 +14,7 @@ from pydantic import BaseModel, Field
 
 
 class RoomCreateResponse(BaseModel):
-    """Response model for room creation endpoint."""
+    """Response when creating a new room."""
 
     room_id: str = Field(..., description="Unique room identifier")
     join_url: str = Field(..., description="URL to join the room")
@@ -23,14 +22,14 @@ class RoomCreateResponse(BaseModel):
 
 
 class RoomExistsResponse(BaseModel):
-    """Response model for room existence check endpoint."""
+    """Response when checking if room exists."""
 
     exists: bool = Field(..., description="Whether the room exists")
     room_id: str = Field(..., description="Room identifier that was checked")
 
 
 class AutocompleteRequest(BaseModel):
-    """Request model for code autocomplete endpoint."""
+    """Request for code autocomplete suggestions."""
 
     code: str = Field(..., description="Current code content")
     cursor_position: int = Field(..., description="Cursor position in code", ge=0)
@@ -38,7 +37,7 @@ class AutocompleteRequest(BaseModel):
 
 
 class AutocompleteResponse(BaseModel):
-    """Response model for code autocomplete endpoint."""
+    """Response with autocomplete suggestion."""
 
     suggestion: str = Field(..., description="Autocomplete suggestion text")
     insert_position: int = Field(..., description="Position to insert suggestion")
@@ -48,7 +47,7 @@ class AutocompleteResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """Standard error response model."""
+    """Standard error response."""
 
     error: str = Field(..., description="Error message")
     detail: Optional[str] = Field(None, description="Detailed error information")
@@ -60,7 +59,7 @@ class ErrorResponse(BaseModel):
 
 
 class CursorPosition(BaseModel):
-    """Cursor position data for a user."""
+    """Cursor position for a user."""
 
     line: int = Field(..., description="Line number (1-indexed)", ge=1)
     column: int = Field(..., description="Column number (0-indexed)", ge=0)
@@ -68,7 +67,7 @@ class CursorPosition(BaseModel):
 
 
 class InitMessage(BaseModel):
-    """Initial state message sent when client connects to room."""
+    """Initial state sent when client connects to room."""
 
     type: Literal["init"] = "init"
     code: str = Field(..., description="Current code in the room")
@@ -81,7 +80,7 @@ class InitMessage(BaseModel):
 
 
 class CodeUpdateMessage(BaseModel):
-    """Code update message from a user."""
+    """Code update from a user."""
 
     type: Literal["code_update"] = "code_update"
     code: str = Field(..., description="Updated code content")
@@ -89,7 +88,7 @@ class CodeUpdateMessage(BaseModel):
 
 
 class CursorMoveMessage(BaseModel):
-    """Cursor movement message from a user."""
+    """Cursor movement from a user."""
 
     type: Literal["cursor_move"] = "cursor_move"
     user_id: str = Field(..., description="User who moved cursor")
@@ -99,7 +98,7 @@ class CursorMoveMessage(BaseModel):
 
 
 class UserJoinedMessage(BaseModel):
-    """User joined room message."""
+    """User joined room notification."""
 
     type: Literal["user_joined"] = "user_joined"
     user_id: str = Field(..., description="ID of user who joined")
@@ -107,7 +106,7 @@ class UserJoinedMessage(BaseModel):
 
 
 class UserLeftMessage(BaseModel):
-    """User left room message."""
+    """User left room notification."""
 
     type: Literal["user_left"] = "user_left"
     user_id: str = Field(..., description="ID of user who left")

@@ -10,7 +10,7 @@ interface UserSidebarProps {
   currentUserId: string | null;
 }
 
-// Map backend colors to chart hex colors
+// Map backend colors to Tailwind colors (matches cursor colors)
 const getChartColor = (hexColor: string): string => {
   const colorMap: Record<string, string> = {
     "#C72626": "#ef4444", // red
@@ -25,6 +25,10 @@ const getChartColor = (hexColor: string): string => {
   return colorMap[hexColor] || "#6366f1"; // default indigo
 };
 
+/**
+ * Sidebar showing all active users in the room
+ * Highlights current user and shows color indicators
+ */
 export function UserSidebar({ users, currentUserId }: UserSidebarProps) {
   const userArray = Array.from(users.values());
 
@@ -46,7 +50,7 @@ export function UserSidebar({ users, currentUserId }: UserSidebarProps) {
               key={user.id}
               className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
             >
-              {/* Color indicator */}
+              {/* Color indicator (matches cursor color) */}
               <div
                 className="w-3 h-3 rounded-full shrink-0"
                 style={{
@@ -69,7 +73,7 @@ export function UserSidebar({ users, currentUserId }: UserSidebarProps) {
               {/* Online indicator */}
               <div
                 className="w-2 h-2 rounded-full shrink-0 animate-pulse"
-                style={{ backgroundColor: "#22c55e" }} // green pulse
+                style={{ backgroundColor: "#22c55e" }}
               />
             </div>
           );

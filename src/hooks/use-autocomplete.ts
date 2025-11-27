@@ -14,6 +14,10 @@ interface UseAutocompleteOptions {
   enabled?: boolean;
 }
 
+/**
+ * Provides debounced autocomplete suggestions from the backend
+ * Waits for typing to pause before making API request
+ */
 export function useAutocomplete(
   code: string,
   cursorPosition: number,
@@ -28,6 +32,7 @@ export function useAutocomplete(
   const [isLoading, setIsLoading] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Request suggestion from backend
   const fetchSuggestion = useCallback(async () => {
     if (!enabled) return;
 
@@ -41,14 +46,14 @@ export function useAutocomplete(
       );
       setSuggestion(result);
     } catch (error) {
-      // No suggestion available - this is normal
+      // No suggestion available - this is normal behavior
       setSuggestion(null);
     } finally {
       setIsLoading(false);
     }
   }, [code, cursorPosition, language, enabled]);
 
-  // Debounced autocomplete trigger
+  // Debounce autocomplete requests (wait for user to stop typing)
   useEffect(() => {
     if (!enabled) {
       setSuggestion(null);

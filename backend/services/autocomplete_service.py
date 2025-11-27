@@ -1,9 +1,8 @@
 """
-Code autocomplete service.
+Code autocomplete service - provides rule-based suggestions.
 
-Provides mocked autocomplete suggestions based on simple pattern matching.
-This is a simplified implementation that demonstrates the concept without
-requiring actual AI/ML models.
+This is a mocked implementation using pattern matching.
+In production, you'd integrate with an AI model or language server.
 """
 
 import re
@@ -12,20 +11,19 @@ from typing import Optional
 
 class AutocompleteService:
     """
-    Service for providing code autocomplete suggestions.
+    Provides code autocomplete suggestions using pattern matching.
 
-    Uses rule-based pattern matching to suggest common code patterns
-    based on the current context. This is a mocked implementation suitable
-    for demonstration purposes.
+    Uses simple rules to detect common patterns and suggest completions.
+    Good for demo purposes - replace with real AI model for production.
     """
 
     def __init__(self):
-        """Initialize autocomplete service with suggestion patterns."""
+        """Initialize with suggestion patterns."""
         self._init_patterns()
 
     def _init_patterns(self) -> None:
         """Initialize pattern-based suggestion rules."""
-        # Python-specific suggestions
+        # Python keyword patterns
         self.python_patterns = {
             "def ": {"suggestion": "function_name():\n    pass", "trigger": "def"},
             "class ": {
@@ -51,7 +49,7 @@ class AutocompleteService:
             },
         }
 
-        # Common Python imports
+        # Common import suggestions
         self.common_imports = [
             "import os",
             "import sys",
@@ -71,15 +69,12 @@ class AutocompleteService:
 
         Args:
             code: Current code content
-            cursor_position: Cursor position in code (0-indexed)
-            language: Programming language (currently only 'python' supported)
+            cursor_position: Cursor position (0-indexed)
+            language: Programming language (only 'python' supported)
 
         Returns:
-            dict: Suggestion with fields:
-                - suggestion: The suggested code
-                - insert_position: Where to insert the suggestion
-                - trigger_word: Word that triggered the suggestion
-            Returns None if no suggestion available
+            dict with suggestion, insert_position, trigger_word
+            None if no suggestion available
         """
         if language != "python":
             return None
@@ -91,7 +86,7 @@ class AutocompleteService:
         lines = text_before_cursor.split("\n")
         current_line = lines[-1] if lines else ""
 
-        # Check for pattern matches
+        # Check for exact pattern matches
         for pattern, suggestion_data in self.python_patterns.items():
             if current_line.endswith(pattern):
                 return {
@@ -100,9 +95,8 @@ class AutocompleteService:
                     "trigger_word": suggestion_data["trigger"],
                 }
 
-        # Check for import statement context
+        # Suggest import completion
         if "import" in current_line:
-            # Suggest common import if line is incomplete
             if current_line.strip() == "import":
                 return {
                     "suggestion": " os",
@@ -110,7 +104,7 @@ class AutocompleteService:
                     "trigger_word": "import",
                 }
 
-        # Check for function definition patterns
+        # Suggest function parentheses
         if re.search(r"\bdef\s+\w*$", current_line):
             return {
                 "suggestion": "():\n    pass",
@@ -118,7 +112,7 @@ class AutocompleteService:
                 "trigger_word": "def",
             }
 
-        # Check for print statement
+        # Suggest print statement completion
         if current_line.endswith("print"):
             return {
                 "suggestion": "()",
@@ -126,7 +120,7 @@ class AutocompleteService:
                 "trigger_word": "print",
             }
 
-        # Check for common variable patterns
+        # Suggest variable initialization
         if current_line.strip().endswith("="):
             return {
                 "suggestion": " None",
@@ -139,12 +133,7 @@ class AutocompleteService:
     def get_import_suggestions(self, query: str = "") -> list[str]:
         """
         Get list of common import suggestions.
-
-        Args:
-            query: Optional search query to filter imports
-
-        Returns:
-            list: List of import statement suggestions
+        Can filter by query string.
         """
         if not query:
             return self.common_imports

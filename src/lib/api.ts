@@ -17,7 +17,12 @@ export interface AutocompleteResponse {
   trigger_word?: string;
 }
 
+/**
+ * API client for backend communication
+ * Handles room management and autocomplete requests
+ */
 export class ApiClient {
+  // Create a new collaborative room
   static async createRoom(): Promise<CreateRoomResponse> {
     const response = await fetch(`${API_URL}/rooms`, {
       method: "POST",
@@ -30,6 +35,7 @@ export class ApiClient {
     return response.json();
   }
 
+  // Check if room exists before joining
   static async checkRoomExists(roomId: string): Promise<RoomExistsResponse> {
     const response = await fetch(`${API_URL}/rooms/${roomId}/exists`);
 
@@ -40,6 +46,7 @@ export class ApiClient {
     return response.json();
   }
 
+  // Get autocomplete suggestion based on current code context
   static async getAutocomplete(
     code: string,
     cursorPosition: number,

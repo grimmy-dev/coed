@@ -1,8 +1,5 @@
 """
-Room management service.
-
-Handles all business logic related to collaborative coding rooms,
-including creation, validation, and state management in Redis.
+Room management service - handles room lifecycle and state.
 """
 
 import secrets
@@ -13,46 +10,32 @@ from config.settings import settings
 
 class RoomService:
     """
-    Service for managing collaborative coding rooms.
+    Manages collaborative coding rooms in Redis.
 
     Responsibilities:
         - Generate unique room IDs
         - Create and initialize rooms
         - Check room existence
-        - Manage room state in Redis
-        - Handle room TTL (Time-To-Live)
+        - Manage room TTL (expiration)
     """
 
     def __init__(self, redis_client: Redis):
-        """
-        Initialize room service with Redis client.
-
-        Args:
-            redis_client: Redis client instance for data operations
-        """
+        """Initialize with Redis client."""
         self.redis = redis_client
 
     def generate_room_id(self) -> str:
         """
-        Generate a cryptographically secure random room ID.
-
-        Returns:
-            str: Hexadecimal room ID of configured length
+        Generate cryptographically secure random room ID.
+        6 chars = 16 million combinations (collision extremely rare).
         """
         return secrets.token_hex(settings.room_code_length // 2)
 
     async def create_room(self) -> tuple[str, bool]:
         """
-        Create a new room with a unique ID.
+        Create a new room with unique ID.
 
-        Handles collision detection by attempting multiple ID generations
-        if necessary. Extremely rare with 6-char hex (16M combinations).
-
-        Returns:
-            tuple: (room_id, created) where created is True if new room
-
-        Raises:
-            Exception: If unable to generate unique ID after max attempts
+        Handles collision detection by retrying if ID already exists.
+        Returns (room_id, created) tuple.
         """
         max_attempts = 10
 
@@ -70,53 +53,28 @@ class RoomService:
 
     async def _initialize_room(self, room_id: str) -> None:
         """
-        Initialize room data structure in Redis.
-
-        Creates the code key with TTL. Users set and cursors hash
-        are created when first user joins (Redis doesn't store empty collections).
-
-        Args:
-            room_id: Room identifier to initialize
+        Initialize room in Redis with empty code.
+        Sets TTL so room expires after inactivity.
         """
         await self.redis.set(
             f"room:{room_id}:code",
             "",  # Start with empty code
-            ex=settings.room_ttl_seconds,
+            ex=settings.room_ttl_seconds,  # Auto-expire after TTL
         )
 
     async def room_exists(self, room_id: str) -> bool:
-        """
-        Check if a room exists in Redis.
-
-        Args:
-            room_id: Room identifier to check
-
-        Returns:
-            bool: True if room exists, False otherwise
-        """
+        """Check if room exists in Redis."""
         return bool(await self.redis.exists(f"room:{room_id}:code"))
 
     async def get_room_code(self, room_id: str) -> str:
-        """
-        Get current code content for a room.
-
-        Args:
-            room_id: Room identifier
-
-        Returns:
-            str: Current code content, empty string if not found
-        """
+        """Get current code content for room."""
         code = await self.redis.get(f"room:{room_id}:code")
         return code if code else ""
 
     async def refresh_room_ttl(self, room_id: str) -> None:
         """
         Refresh TTL for all room keys.
-
         Called on room activity to prevent expiration while users are active.
-
-        Args:
-            room_id: Room identifier
         """
         ttl = settings.room_ttl_seconds
         await self.redis.expire(f"room:{room_id}:code", ttl)
